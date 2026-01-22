@@ -1,0 +1,1364 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HAMARU風 単語4択（CSV/復習/周回/結果/音声/切替）</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121a33; --text:#e8eeff; --muted:#a9b3d6; --good:#38d996; --bad:#ff5c7a; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif;
+      background:radial-gradient(1200px 800px at 20% 0%, #1b2a66 0%, var(--bg) 55%); color:var(--text); }
+    .wrap { max-width: 1020px; margin: 0 auto; padding: 20px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; }
+    .card { background: rgba(18,26,51,.88); border:1px solid rgba(255,255,255,.08); border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.25); padding: 16px; }
+    h1 { font-size: 18px; margin:0 0 10px; color: #dbe6ff; letter-spacing: .02em; }
+    .hud { display:flex; gap:12px; flex-wrap:wrap; }
+    .pill { background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08);
+      padding: 10px 12px; border-radius: 14px; font-size: 13px; color: var(--muted); }
+    .pill b { color: var(--text); }
+    .big { font-size: 28px; font-weight: 800; letter-spacing: .02em; }
+    .small { color: var(--muted); font-size: 13px; }
+    .question { display:grid; gap:10px; }
+    .qtop { display:flex; gap:10px; align-items:baseline; justify-content:space-between; }
+
+    /* ② 長文でも見やすく：折り返し + 自動縮小用 */
+    #prompt {
+      line-height: 1.18;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .fit {
+      font-size: clamp(18px, 3.3vw, 28px);
+    }
+
+    .progress { height: 10px; background: rgba(255,255,255,.08); border-radius: 99px; overflow:hidden;
+      border:1px solid rgba(255,255,255,.08); }
+    .bar { height:100%; width:100%; background: linear-gradient(90deg, rgba(56,217,150,.95), rgba(95,169,255,.9));
+      transform-origin:left; }
+
+    .choices { display:grid; grid-template-columns: 1fr; gap:10px; margin-top: 10px; }
+    @media (min-width: 680px) { .choices { grid-template-columns: 1fr 1fr; } }
+
+    button.choice {
+      background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); color: var(--text);
+      border-radius: 16px; padding: 14px 14px; cursor:pointer; text-align:left;
+      transition: transform .06s ease, background .2s ease, border-color .2s ease; user-select:none;
+    }
+    button.choice:hover { transform: translateY(-1px); background: rgba(255,255,255,.085); border-color: rgba(255,255,255,.16); }
+    button.choice:active { transform: translateY(0px) scale(.99); }
+    button.choice[disabled] { opacity:.72; cursor:not-allowed; }
+
+    /* ② 選択肢も長文対応 */
+    .choiceText {
+      display:block;
+      font-weight: 800;
+      font-size: clamp(14px, 2.1vw, 16px);
+      line-height: 1.22;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .flash { border-radius: 16px; padding: 10px 12px; font-size: 13px; display:none; }
+    .flash.good { display:block; background: rgba(56,217,150,.14); border:1px solid rgba(56,217,150,.35); color:#bff7df; }
+    .flash.bad  { display:block; background: rgba(255,92,122,.12); border:1px solid rgba(255,92,122,.35); color:#ffd2db; }
+
+    .controls { display:flex; gap:10px; flex-wrap:wrap; margin-top: 10px; }
+    .btn {
+      background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); color: var(--text);
+      border-radius: 14px; padding: 10px 12px; font-size: 13px; cursor:pointer;
+    }
+    .btn:hover { background: rgba(255,255,255,.10); }
+    .btn.smallbtn { padding: 8px 10px; font-size: 12px; border-radius: 12px; }
+
+    .settings { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    input[type="number"], select, input[type="file"], input[type="range"] {
+      padding: 9px 10px; border-radius: 12px; border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18); color: var(--text); outline:none;
+    }
+    input[type="number"] { width: 90px; }
+
+    .footer { opacity:.9; margin-top: 10px; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.10); padding: 2px 6px; border-radius: 8px; }
+    .hint { opacity:.9; }
+    .inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .spacer { height:12px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="row">
+      <div class="card" style="flex: 1 1 600px;">
+        <h1>HAMARU風 単語4択（CSV/復習/周回/結果/音声/切替）</h1>
+
+        <div class="hud">
+          <div class="pill">スコア: <b id="score">0</b></div>
+          <div class="pill">コンボ: <b id="combo">0</b></div>
+          <div class="pill">正解率: <b id="acc">0%</b></div>
+          <div class="pill">残り: <b id="remaining">0</b></div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="question">
+          <!-- 結果パネル -->
+          <div id="resultPanel" class="card" style="display:none;margin-top:12px;">
+            <h1>結果（間違えた順）</h1>
+            <div class="small" id="resultSummary"></div>
+            <div class="settings" style="margin-top:8px;">
+              <span class="small">表示: 出題回数</span>
+              <select id="resultMinSeen">
+                <option value="1">1回以上（全部）</option>
+                <option value="3">3回以上</option>
+                <option value="5" selected>5回以上</option>
+              </select>
+              <button class="btn" id="autoPickWeakFromResults">この条件で苦手を自動セット</button>
+            </div>
+            <div style="height:10px"></div>
+            <div id="resultTable" class="small" style="overflow:auto;"></div>
+            <div style="height:10px"></div>
+            <button class="btn" id="closeResult">閉じる</button>
+          </div>
+
+          <div class="qtop">
+            <div>
+              <div class="inline">
+                <div class="small" id="modeLabel">日本語 → 英語（4択）</div>
+                <button class="btn smallbtn" id="speak">🔊 発音</button>
+                <button class="btn smallbtn" id="stopSpeak">⏹ 停止</button>
+              </div>
+              <div class="big fit" id="prompt">---</div>
+              <div class="small hint" id="ttsHint"></div>
+            </div>
+            <div style="text-align:right">
+              <div class="small">制限時間</div>
+              <div class="big"><span id="time">0.0</span>s</div>
+            </div>
+          </div>
+
+          <div class="progress">
+            <div class="bar" id="bar"></div>
+          </div>
+
+          <div id="flash" class="flash"></div>
+          <div class="choices" id="choices"></div>
+
+          <div class="controls">
+            <button class="btn" id="skip">スキップ（復習に回す）</button>
+            <button class="btn" id="restart">リスタート</button>
+            <button class="btn" id="pauseResults">結果を見る（一時停止）</button>
+          </div>
+
+          <div class="footer small">
+            ショートカット:
+            <span class="kbd">1</span>〜<span class="kbd">4</span>で選択 /
+            <span class="kbd">S</span>でスキップ /
+            <span class="kbd">R</span>でリスタート /
+            <span class="kbd">P</span>で発音 /
+            <span class="kbd">X</span>で停止
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="flex: 1 1 360px;">
+        <h1>設定</h1>
+
+        <!-- ③ 方向切替 -->
+        <div class="settings">
+          <label class="small">出題方向</label>
+          <select id="direction">
+            <option value="ja2en">日本語 → 英語</option>
+            <option value="en2ja">英語 → 日本語</option>
+          </select>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">1問の時間（秒）</label>
+          <input id="secondsPerQ" type="number" min="1" max="30" step="0.5" value="6" />
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">周回数</label>
+          <select id="rounds">
+            <option value="1">1周</option>
+            <option value="2">2周</option>
+            <option value="3">3周</option>
+            <option value="5">5周</option>
+            <option value="10">10周</option>
+            <option value="inf">∞（終わらない）</option>
+          </select>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">復習のしつこさ（∞用）</label>
+          <input id="reviewWeight" type="number" min="1" max="10" step="1" value="5" />
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">デッキ</label>
+          <select id="deckSelect">
+            <option value="all">全部</option>
+            <option value="1">Lv1</option>
+            <option value="2">Lv2</option>
+            <option value="3">Lv3</option>
+            <option value="12">Lv1+Lv2</option>
+            <option value="23">Lv2+Lv3</option>
+          </select>
+        </div>
+        <div class="small" id="deckStatus" style="margin-top:8px;opacity:.9;"></div>
+
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,.10);margin:12px 0;">
+
+        <h1 style="font-size:16px;margin:0 0 8px;">復習モード</h1>
+
+        <div class="settings">
+          <label class="small">復習モード</label>
+          <select id="reviewMode">
+            <option value="off">OFF</option>
+            <option value="on">ON（選んだ語をループ）</option>
+          </select>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">復習語数</label>
+          <input id="reviewCount" type="number" min="4" max="50" step="1" value="10" />
+        </div>
+
+        <div class="spacer"></div>
+
+      <div class="settings">
+  <button class="btn" id="pickReview">復習語を選ぶ（チェック）</button>
+  <button class="btn" id="autoPickWeak">苦手を自動セット</button>
+  <button class="btn" id="clearReview">復習をクリア</button>
+</div>
+
+<div class="settings" style="margin-top:10px;">
+  <label class="small">苦手判定（正解率% 未満）</label>
+  <input id="weakThreshold" type="number" min="0" max="100" step="1" value="30" />
+</div>
+  
+
+
+
+
+
+
+
+        <div class="small" id="reviewStatus" style="margin-top:8px;opacity:.9;"></div>
+
+        <div id="reviewPanel" class="card" style="display:none;margin-top:10px;padding:12px;">
+          <div class="small" style="margin-bottom:8px;">復習したい単語にチェック（最大 <span id="reviewMax">10</span>）</div>
+          <div id="reviewList" style="max-height:220px;overflow:auto;"></div>
+          <div style="height:10px"></div>
+          <button class="btn" id="saveReview">保存して閉じる</button>
+        </div>
+
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,.10);margin:12px 0;">
+
+        <h1 style="font-size:16px;margin:0 0 8px;">音声（TTS）</h1>
+
+        <!-- ① 正解時の自動発音 -->
+        <div class="settings">
+          <label class="small">正解時に自動発音</label>
+          <select id="autoSpeak">
+            <option value="on">ON</option>
+            <option value="off">OFF</option>
+          </select>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">声（自動選択）</label>
+          <select id="voiceSelect"></select>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">速さ</label>
+          <input id="rate" type="range" min="0.7" max="1.2" step="0.05" value="1.0" />
+          <span class="small" id="rateLabel">1.00</span>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="settings">
+          <label class="small">音量</label>
+          <input id="volume" type="range" min="0" max="1" step="0.05" value="1.0" />
+          <span class="small" id="volLabel">1.00</span>
+        </div>
+
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,.10);margin:12px 0;">
+
+        <div class="settings">
+          <label class="small">CSVを読み込み</label>
+          <input id="csvFile" type="file" accept=".csv,text/csv" />
+        </div>
+        <div class="small" id="csvStatus" style="margin-top:8px;opacity:.9;"></div>
+
+        <div style="margin-top:10px" class="small">
+          CSV形式: <span class="kbd">en,ja,level</span><br/>
+          en = 英語 / ja = 日本語 / level = 1〜3（任意）
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // =========================
+  // 初期単語（英語）
+  // en = 英語, ja = 日本語
+  // =========================
+  let WORDS_ALL = [
+    { en:"hello", ja:"こんにちは", level:1 },
+    { en:"thank you", ja:"ありがとう", level:1 },
+    { en:"sorry", ja:"ごめんなさい", level:1 },
+    { en:"please", ja:"お願いします", level:1 },
+    { en:"yes", ja:"はい", level:1 },
+    { en:"no", ja:"いいえ", level:1 },
+    { en:"today", ja:"今日", level:1 },
+    { en:"tomorrow", ja:"明日", level:1 },
+    { en:"yesterday", ja:"昨日", level:1 },
+    { en:"now", ja:"今", level:1 },
+    { en:"where", ja:"どこ", level:1 },
+    { en:"what", ja:"なに", level:1 },
+    { en:"how", ja:"どう", level:1 },
+    { en:"why", ja:"なぜ", level:2 },
+    { en:"friend", ja:"友達", level:1 },
+    { en:"family", ja:"家族", level:1 },
+    { en:"school", ja:"学校", level:1 },
+    { en:"work", ja:"仕事", level:1 },
+    { en:"eat", ja:"食べる", level:1 },
+    { en:"drink", ja:"飲む", level:1 },
+
+    { en:"interesting", ja:"面白い", level:2 },
+    { en:"difficult", ja:"難しい", level:2 },
+    { en:"easy", ja:"簡単", level:1 },
+    { en:"careful", ja:"注意深い", level:2 },
+    { en:"familiar", ja:"よく知っている／慣れている", level:2 },
+    { en:"coincidence", ja:"偶然", level:3 },
+    { en:"insurance", ja:"保険", level:3 },
+
+    { en:"watch out", ja:"気をつけて！", level:2 },
+    { en:"wait a second", ja:"ちょっと待って", level:2 },
+    { en:"no problem", ja:"問題ないよ", level:1 },
+    { en:"take away", ja:"持っていく／取り除く", level:2 },
+  ];
+
+  let WORDS = WORDS_ALL.slice();
+
+  // =========================
+  // DOM
+  // =========================
+  const elScore = document.getElementById("score");
+  const elCombo = document.getElementById("combo");
+  const elAcc = document.getElementById("acc");
+  const elRemaining = document.getElementById("remaining");
+  const elPrompt = document.getElementById("prompt");
+  const elTime = document.getElementById("time");
+  const elBar = document.getElementById("bar");
+  const elChoices = document.getElementById("choices");
+  const elFlash = document.getElementById("flash");
+  const elModeLabel = document.getElementById("modeLabel");
+
+  const elSkip = document.getElementById("skip");
+  const elRestart = document.getElementById("restart");
+  const elPauseResults = document.getElementById("pauseResults");
+
+  const elDirection = document.getElementById("direction");
+  const elSecondsPerQ = document.getElementById("secondsPerQ");
+  const elReviewWeight = document.getElementById("reviewWeight");
+  const elRounds = document.getElementById("rounds");
+
+  const elDeckSelect = document.getElementById("deckSelect");
+  const elDeckStatus = document.getElementById("deckStatus");
+
+  const elCsvFile = document.getElementById("csvFile");
+  const elCsvStatus = document.getElementById("csvStatus");
+
+  const elReviewMode = document.getElementById("reviewMode");
+  const elReviewCount = document.getElementById("reviewCount");
+  const elPickReview = document.getElementById("pickReview");
+  const elClearReview = document.getElementById("clearReview");
+
+const elAutoPickWeak = document.getElementById("autoPickWeak");
+const elWeakThreshold = document.getElementById("weakThreshold");
+
+
+
+  const elReviewStatus = document.getElementById("reviewStatus");
+  const elReviewPanel = document.getElementById("reviewPanel");
+  const elReviewList = document.getElementById("reviewList");
+  const elSaveReview = document.getElementById("saveReview");
+  const elReviewMax = document.getElementById("reviewMax");
+
+  const elResultPanel = document.getElementById("resultPanel");
+  const elResultMinSeen = document.getElementById("resultMinSeen");
+  const elAutoPickWeakFromResults = document.getElementById("autoPickWeakFromResults");
+  const elResultSummary = document.getElementById("resultSummary");
+  const elResultTable = document.getElementById("resultTable");
+  const elCloseResult = document.getElementById("closeResult");
+
+  // 結果表示フィルター
+  elResultMinSeen?.addEventListener("change", () => {
+    // すでに結果パネルが開いているときは即反映
+    if (elResultPanel && elResultPanel.style.display !== "none") showResults();
+  });
+
+  // TTS
+  const elSpeak = document.getElementById("speak");
+  const elStopSpeak = document.getElementById("stopSpeak");
+  const elAutoSpeak = document.getElementById("autoSpeak");
+  const elVoiceSelect = document.getElementById("voiceSelect");
+  const elRate = document.getElementById("rate");
+  const elRateLabel = document.getElementById("rateLabel");
+  const elVolume = document.getElementById("volume");
+  const elVolLabel = document.getElementById("volLabel");
+  const elTtsHint = document.getElementById("ttsHint");
+
+  // =========================
+  // 成績（単語ごと）
+  // =========================
+  let STATS = new Map();
+  function wordKey(w){ return `${w.en}||${w.ja}||${w.level}`; }
+  function ensureStat(w){
+    const k = wordKey(w);
+    if (!STATS.has(k)) {
+      STATS.set(k, {
+        en: w.en, ja: w.ja, level: w.level,
+        seen: 0, correct: 0, wrong: 0, skip: 0,
+        wrongChoices: new Set(),
+      });
+    }
+    return STATS.get(k);
+  }
+
+  // =========================
+  // State
+  // =========================
+  let deck = [];
+  let current = null;
+  let locked = false;
+
+  let isPaused = false;
+  let pausedRemain = null;
+
+  let score = 0;
+  let combo = 0;
+  let correct = 0;
+  let answered = 0;
+
+  let secondsPerQ = 6;
+  let reviewWeight = 5;
+
+  let rafId = null;
+
+  // 周回
+  let roundsMode = 1;     // 1..10 or Infinity
+  let totalPlanned = 0;   // 有限: 総問題数 / Infinity
+  let askedCount = 0;     // 出題数
+
+  // 復習セット
+  let REVIEW_SET = [];
+
+  // ③ 方向
+  function getDirection(){ return elDirection?.value || "ja2en"; } // ja2en | en2ja
+
+  // =========================
+  // Utils
+  // =========================
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+  function pickN(arr, n, avoidValue) {
+    const pool = arr.filter(x => x !== avoidValue);
+    return shuffle(pool).slice(0, n);
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, (c)=>({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function beep(type) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = (type === "good") ? 880 : 220;
+      g.gain.value = 0.0001;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      const now = ctx.currentTime;
+      g.gain.exponentialRampToValueAtTime(0.12, now + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+      o.stop(now + 0.18);
+      setTimeout(() => ctx.close(), 250);
+    } catch {}
+  }
+
+  function showFlash(kind, text) {
+    elFlash.style.display = "block";
+    elFlash.className = `flash ${kind}`;
+    elFlash.textContent = text;
+  }
+  function clearChoices() { elChoices.innerHTML = ""; }
+  function setLocked(v) {
+    locked = v;
+    [...elChoices.querySelectorAll("button")].forEach(b => b.disabled = v);
+  }
+
+  function renderHud() {
+    elScore.textContent = String(score);
+    elCombo.textContent = String(combo);
+    const acc = answered === 0 ? 0 : Math.round((correct / answered) * 100);
+    elAcc.textContent = `${acc}%`;
+
+    const remain = (totalPlanned === Infinity)
+      ? deck.length
+      : Math.max(0, totalPlanned - askedCount);
+    elRemaining.textContent = String(remain);
+  }
+
+  // ② 長文のとき自動で少し縮める（promptにfitクラス付与）
+  function applyPromptFit(text) {
+    const t = String(text || "");
+    // ざっくり：長いほど縮小が効く（CSS clampで自然に）
+    if (t.length >= 18) elPrompt.classList.add("fit");
+    else elPrompt.classList.add("fit"); // 常にfitでOK（短文でも自然）
+  }
+
+  // =========================
+  // Deck filter
+  // =========================
+  function applyDeckFilter() {
+    const v = elDeckSelect ? elDeckSelect.value : "all";
+
+    let allowed = new Set([1,2,3]);
+    if (v === "1") allowed = new Set([1]);
+    if (v === "2") allowed = new Set([2]);
+    if (v === "3") allowed = new Set([3]);
+    if (v === "12") allowed = new Set([1,2]);
+    if (v === "23") allowed = new Set([2,3]);
+
+    WORDS = WORDS_ALL
+      .filter(w => allowed.has(Number(w.level ?? 0)))
+      .map(w => ({ en: w.en, ja: w.ja, level: Number(w.level ?? 1), en_lang: (w.en_lang||""), ja_lang: (w.ja_lang||"") }));
+
+    const name = (v === "all") ? "全部" : v;
+    elDeckStatus.textContent = `デッキ: ${name}（${WORDS.length}語）`;
+  }
+
+  // =========================
+  // CSV parse (en,ja,level)
+  // =========================
+  function parseCSV(text) {
+    const lines = text.replace(/\r/g, "").split("\n").filter(l => l.trim().length > 0);
+    if (lines.length < 2) return [];
+
+    // ★BOM除去（Excel等のUTF-8 BOM付きCSVでもOK）
+    lines[0] = lines[0].replace(/^\uFEFF/, "");
+
+    const header = lines[0].split(",").map(s => s.trim().toLowerCase());
+    const enIdx = header.indexOf("en");
+    const jaIdx = header.indexOf("ja");
+    const lvIdx = header.indexOf("level");
+    const enLangIdx = header.indexOf("en_lang"); // 任意
+    const jaLangIdx = header.indexOf("ja_lang"); // 任意（将来用）
+
+    if (enIdx === -1 || jaIdx === -1) {
+      throw new Error("CSVの1行目は en,ja,level（levelは任意）にしてね");
+    }
+
+    const items = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",");
+      const en = (cols[enIdx] ?? "").trim();
+      const ja = (cols[jaIdx] ?? "").trim();
+
+      let level = 1;
+      if (lvIdx !== -1) {
+        const raw = (cols[lvIdx] ?? "").trim();
+        const n = Number(raw);
+        level = Number.isFinite(n) && n >= 1 && n <= 3 ? n : 1;
+      }
+
+      const en_lang = (enLangIdx !== -1 ? (cols[enLangIdx] ?? "").trim() : "");
+      const ja_lang = (jaLangIdx !== -1 ? (cols[jaLangIdx] ?? "").trim() : "");
+
+      if (!en || !ja) continue;
+      items.push({ en, ja, level, en_lang, ja_lang });
+    }
+    return items;
+  }
+
+  // =========================
+  // Review mode
+  // =========================
+  function updateReviewStatus() {
+    const mode = elReviewMode?.value ?? "off";
+    const n = REVIEW_SET.length;
+    elReviewStatus.textContent =
+      mode === "on" ? `復習ON: ${n}語を使う` : `復習OFF: 選択済み ${n}語`;
+  }
+
+  function openReviewPicker() {
+    const max = clamp(parseInt(elReviewCount?.value || "10", 10), 4, 50);
+    elReviewMax.textContent = String(max);
+
+    elReviewList.innerHTML = "";
+    const selected = new Set(REVIEW_SET.map(w => w.en + "||" + w.ja + "||" + w.level));
+
+    WORDS.forEach((w) => {
+      const key = w.en + "||" + w.ja + "||" + w.level;
+
+      const row = document.createElement("label");
+      row.style.display = "flex";
+      row.style.gap = "10px";
+      row.style.alignItems = "center";
+      row.style.padding = "6px 4px";
+      row.style.borderBottom = "1px solid rgba(255,255,255,.08)";
+      row.style.cursor = "pointer";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = selected.has(key);
+
+      cb.addEventListener("change", () => {
+        const checked = elReviewList.querySelectorAll("input[type=checkbox]:checked").length;
+        if (checked > max) {
+          cb.checked = false;
+          showFlash("bad", `最大${max}語までだよ`);
+        }
+      });
+
+      const txt = document.createElement("div");
+      txt.innerHTML = `<b>${escapeHtml(w.ja)}</b> <span class="small">↔ ${escapeHtml(w.en)}（Lv${w.level}）</span>`;
+
+      row.appendChild(cb);
+      row.appendChild(txt);
+      elReviewList.appendChild(row);
+    });
+
+    elReviewPanel.style.display = "block";
+  }
+
+  function saveReviewPicker() {
+    const max = clamp(parseInt(elReviewCount?.value || "10", 10), 4, 50);
+    const picked = [];
+
+    const rows = elReviewList.querySelectorAll("label");
+    rows.forEach((row, idx) => {
+      const cb = row.querySelector("input[type=checkbox]");
+      if (!cb || !cb.checked) return;
+      if (picked.length >= max) return;
+      picked.push(WORDS[idx]);
+    });
+
+    REVIEW_SET = picked.map(w => ({ ...w }));
+    elReviewPanel.style.display = "none";
+    updateReviewStatus();
+    resetGame();
+  }
+
+  function clearReviewSet() {
+    REVIEW_SET = [];
+    updateReviewStatus();
+    resetGame();
+  }
+
+  // =========================
+  // Weak auto-pick (uses result filter)
+  // =========================
+  function autoPickWeakWords() {
+    const MIN_SEEN = clamp(parseInt(elResultMinSeen?.value || "5", 10), 1, 9999);
+    const th = clamp(parseInt(elWeakThreshold?.value || "30", 10), 0, 100) / 100;
+
+    const candidates = Array.from(STATS.values())
+      .filter(r => (r.seen || 0) >= MIN_SEEN)
+      .map(r => ({ r, acc: r.seen ? (r.correct / r.seen) : 1 }))
+      .filter(x => x.acc < th)
+      .sort((a, b) => {
+        if (a.acc !== b.acc) return a.acc - b.acc; // lower acc first
+        if ((a.r.seen || 0) !== (b.r.seen || 0)) return (b.r.seen || 0) - (a.r.seen || 0); // more data first
+        return (b.r.wrong || 0) - (a.r.wrong || 0); // then more wrong
+      });
+
+    const max = clamp(parseInt(elReviewCount?.value || "10", 10), 4, 50);
+
+    const picked = [];
+    for (const x of candidates) {
+      if (picked.length >= max) break;
+      const found = WORDS_ALL.find(w =>
+        w.en === x.r.en && w.ja === x.r.ja && Number(w.level) === Number(x.r.level)
+      );
+      if (found) picked.push({ ...found });
+    }
+
+    REVIEW_SET = picked;
+
+    if (elReviewMode) elReviewMode.value = "on";
+    updateReviewStatus();
+
+    if (REVIEW_SET.length === 0) {
+      showFlash("bad", `苦手が見つからなかった（出題${MIN_SEEN}回以上で、正解率${Math.round(th*100)}%未満が0件）`);
+      return;
+    }
+
+    showFlash("good", `苦手を自動セット: ${REVIEW_SET.length}語（正解率${Math.round(th*100)}%未満）`);
+    resetGame();
+  }
+
+  // =========================
+  // Results
+  // =========================
+  function showResults(){
+    const MIN_SEEN = clamp(parseInt(elResultMinSeen?.value || "1", 10), 1, 9999);
+    const rows = Array.from(STATS.values()).filter(r => (r.seen || 0) >= MIN_SEEN);
+
+    if (!rows.length) {
+      elResultSummary.textContent = `表示条件に合う単語がありません（出題${MIN_SEEN}回以上）`;
+      elResultTable.innerHTML = `<div class="small" style="opacity:.9;">ヒント：上の「表示: 出題回数」を <b>1回以上</b> にすると全部出ます。</div>`;
+      elResultPanel.style.display = "block";
+      return;
+    }
+
+    const totalSeen = rows.reduce((a,r)=>a+(r.seen||0),0);
+    const totalCorrect = rows.reduce((a,r)=>a+(r.correct||0),0);
+    const totalWrong = rows.reduce((a,r)=>a+(r.wrong||0),0);
+    const totalSkip = rows.reduce((a,r)=>a+(r.skip||0),0);
+
+    rows.sort((a, b) => {
+      const aSeen = a.seen || 0;
+      const bSeen = b.seen || 0;
+
+      const aAcc = aSeen ? (a.correct / aSeen) : 1;
+      const bAcc = bSeen ? (b.correct / bSeen) : 1;
+
+      const aZero = aSeen > 0 && (a.correct || 0) === 0;
+      const bZero = bSeen > 0 && (b.correct || 0) === 0;
+
+      if (aZero !== bZero) return aZero ? -1 : 1;     // 0% fixed at top
+      if (aAcc !== bAcc) return aAcc - bAcc;          // lower acc first
+      if (aSeen !== bSeen) return bSeen - aSeen;      // more data first
+      return (b.wrong || 0) - (a.wrong || 0);         // then more wrong
+    });
+
+    const acc = totalSeen ? Math.round((totalCorrect/totalSeen)*100) : 0;
+    elResultSummary.textContent =
+      `総出題:${totalSeen} / 正解:${totalCorrect} / 不正解:${totalWrong} / スキップ:${totalSkip} / 正解率:${acc}%（表示: 出題${MIN_SEEN}回以上）`;
+
+    const html = `
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">ペア</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">Lv</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">出題</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">不正解</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">スキップ</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">正解率</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">間違い率</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.12);">間違いパターン</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>{
+            const attempts = r.seen || 0;
+            const correctRate = attempts ? Math.round((r.correct / attempts) * 100) : 0;
+            const wrongRate   = attempts ? Math.round((r.wrong / attempts) * 100) : 0;
+            const isBad = correctRate <= 30;
+            const patterns = r.wrongChoices ? r.wrongChoices.size : 0;
+
+            return `
+              <tr>
+                <td style="padding:6px;border-bottom:1px solid rgba(255,255,255,.08);">
+                  <b>${escapeHtml(r.ja)}</b>
+                  <div class="small">↔ ${escapeHtml(r.en)}</div>
+                </td>
+                <td style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.08);">${r.level}</td>
+                <td style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.08);">${attempts}</td>
+                <td style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.08);">${r.wrong||0}</td>
+                <td style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.08);">${r.skip||0}</td>
+
+                <td style="
+                  text-align:right;
+                  padding:6px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                  color:${isBad ? '#ff5c7a' : '#e8eeff'};
+                  font-weight:${isBad ? '800' : '400'};
+                ">
+                  ${correctRate}%
+                </td>
+
+                <td style="
+                  text-align:right;
+                  padding:6px;
+                  border-bottom:1px solid rgba(255,255,255,.08);
+                  color:${wrongRate >= 70 ? '#ff9a5c' : '#a9b3d6'};
+                ">
+                  ${wrongRate}%
+                </td>
+
+                <td style="text-align:right;padding:6px;border-bottom:1px solid rgba(255,255,255,.08);">${patterns}</td>
+              </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+
+    elResultTable.innerHTML = html;
+    elResultPanel.style.display = "block";
+  }
+// =========================
+  // Game logic (方向対応)
+  // =========================
+  function getPromptText(w) {
+    return (getDirection() === "ja2en") ? w.ja : w.en;
+  }
+  function getAnswerText(w) {
+    return (getDirection() === "ja2en") ? w.en : w.ja;
+  }
+  function getChoicePool() {
+    // 選択肢は「答え側」
+    return WORDS.map(w => getAnswerText(w));
+  }
+  function buildChoices(word) {
+    const answer = getAnswerText(word);
+    const distractors = pickN(getChoicePool(), 3, answer);
+    return shuffle([answer, ...distractors]);
+  }
+
+  function scheduleTimer(startRemain = secondsPerQ) {
+    cancelAnimationFrame(rafId);
+
+    const start = performance.now();
+    const startValue = startRemain;
+
+    function tick(now) {
+      if (isPaused) return;
+
+      const elapsed = (now - start) / 1000;
+      const remain = Math.max(0, startValue - elapsed);
+      pausedRemain = remain;
+
+      elTime.textContent = remain.toFixed(1);
+
+      const ratio = remain / secondsPerQ;
+      elBar.style.transform = `scaleX(${Math.max(0, ratio)})`;
+
+      if (remain <= 0 && !locked) {
+        handleSkip(true);
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  // ∞モードだけ「戻す」
+  function reinsertWord(word, when) {
+    let idx;
+    if (when === "front") {
+      idx = Math.floor(Math.random() * Math.max(1, reviewWeight));
+    } else if (when === "mid") {
+      idx = Math.floor(deck.length * 0.35 + Math.random() * Math.max(1, deck.length * 0.15));
+    } else {
+      idx = Math.floor(deck.length * 0.7 + Math.random() * Math.max(1, deck.length * 0.25));
+    }
+    idx = clamp(idx, 0, deck.length);
+    deck.splice(idx, 0, word);
+  }
+
+  function endGame() {
+    cancelAnimationFrame(rafId);
+    clearChoices();
+    elPrompt.textContent = "終了！";
+    elTime.textContent = "0.0";
+    elBar.style.transform = "scaleX(0)";
+    showFlash("good", `おつかれ！ スコア: ${score} / 正解率: ${elAcc.textContent}`);
+    showResults();
+  }
+
+  function updateModeLabel() {
+    const d = getDirection();
+    elModeLabel.textContent = (d === "ja2en") ? "日本語 → 英語（4択）" : "英語 → 日本語（4択）";
+  }
+
+  function nextQuestion() {
+    if (askedCount >= totalPlanned && totalPlanned !== Infinity) {
+      endGame();
+      return;
+    }
+    if (deck.length === 0) {
+      if (totalPlanned === Infinity) rebuildInfiniteDeck();
+      else { endGame(); return; }
+    }
+
+    current = deck.shift();
+    askedCount++;
+
+    ensureStat(current).seen++;
+
+    locked = false;
+    updateModeLabel();
+
+    const promptText = getPromptText(current);
+    elPrompt.textContent = promptText;
+
+    // ★問題が切り替わるたびに音声表示も自動更新（🔊を押さなくても反映）
+    updateTtsHint(getForeignLangHint(current));
+    applyPromptFit(promptText);
+
+    clearChoices();
+    elFlash.className = "flash"; elFlash.textContent = ""; elFlash.style.display = "none";
+
+    const options = buildChoices(current);
+    options.forEach((opt, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "choice";
+      btn.innerHTML = `<span class="small">(${idx+1})</span>  <span class="choiceText">${escapeHtml(opt)}</span>`;
+      btn.addEventListener("click", () => handleAnswer(opt));
+      elChoices.appendChild(btn);
+    });
+
+    renderHud();
+    scheduleTimer(isPaused ? (pausedRemain ?? secondsPerQ) : secondsPerQ);
+  }
+
+  // =========================
+  // TTS
+  // =========================
+  let voices = [];
+  function listVoices() {
+    voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    elVoiceSelect.innerHTML = "";
+
+    // ★AUTO（言語に合わせる）
+    const optAuto = document.createElement("option");
+    optAuto.value = "auto";
+    optAuto.textContent = "AUTO（言語に合わせる）";
+    elVoiceSelect.appendChild(optAuto);
+
+
+    if (!voices.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "（音声が見つかりません）";
+      elVoiceSelect.appendChild(opt);
+      elTtsHint.textContent = "ヒント: Chromeのほうが音声が充実してることが多いよ";
+      return;
+    }
+
+    // Auto優先: 英語(en-US) と 日本語(ja-JP)を上に持ってくる
+    const scoreLang = (lang) => {
+      if (!lang) return 999;
+      lang = lang.toLowerCase();
+      if (lang.includes("en-us")) return 0;
+      if (lang.includes("ja-jp")) return 1;
+      if (lang.startsWith("en")) return 2;
+      if (lang.startsWith("ja")) return 3;
+      return 10;
+    };
+
+    const sorted = voices.slice().sort((a,b)=>{
+      const sa = scoreLang(a.lang), sb = scoreLang(b.lang);
+      if (sa !== sb) return sa - sb;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+
+    sorted.forEach((v) => {
+      const opt = document.createElement("option");
+      opt.value = String(voices.indexOf(v));
+      opt.textContent = `${v.name} (${v.lang})`;
+      elVoiceSelect.appendChild(opt);
+    });
+
+    elVoiceSelect.selectedIndex = 0;
+
+    // ★音声一覧が揃ったタイミングで、現在の問題に合わせて表示も更新
+    if (typeof current !== 'undefined' && current) {
+      updateTtsHint(getForeignLangHint(current));
+    }
+  }
+
+  function cleanForSpeech(text) {
+    if (!text) return "";
+    return String(text)
+      .replace(/（.*?）/g, "")
+      .replace(/\(.*?\)/g, "")
+      .replace(/[“”"「」]/g, "")
+      .trim();
+  }
+
+  function pickVoiceFor(langHint) {
+    if (!voices.length) return null;
+
+    const sel = (elVoiceSelect.value || "auto");
+    // 手動選択（AUTO以外）ならそれを使う
+    if (sel !== "auto") {
+      const idx = parseInt(sel, 10);
+      if (Number.isFinite(idx) && voices[idx]) return voices[idx];
+    }
+
+    const hint = (langHint || "").trim().toLowerCase();
+
+    // 1) 完全一致（例: zh-tw）
+    let v =
+      voices.find(x => (x.lang || "").trim().toLowerCase() === hint);
+    if (v) return v;
+
+    // 2) 先頭一致（例: zh- なら zh-xx）
+    const base = hint.split("-")[0];
+    if (base) {
+      v = voices.find(x => ((x.lang || "").trim().toLowerCase().split("-")[0] === base));
+      if (v) return v;
+    }
+
+    // 3) 部分一致（保険）
+    v = voices.find(x => ((x.lang || "").toLowerCase().includes(hint)));
+    if (v) return v;
+
+    // 4) 最後の手段: 英語→日本語→先頭
+    return voices.find(x => (x.lang || "").toLowerCase().startsWith("en"))
+      || voices.find(x => (x.lang || "").toLowerCase().startsWith("ja"))
+      || voices[0];
+  }
+
+  function guessLangHintFromText(t) {
+    // ざっくり判定（en_langが無いときの保険）
+    const s = (t || "").trim();
+    if (!s) return "";
+    if (/[\uAC00-\uD7A3]/.test(s)) return "ko-KR";    // Hangul
+    if (/[\u3040-\u30FF]/.test(s)) return "ja-JP";    // Kana
+    if (/[\u4E00-\u9FFF]/.test(s)) return "zh-TW";    // Han（台湾寄せ）
+    if (/[A-Za-z]/.test(s)) return "en-US";
+    return "";
+  }
+
+  function normalizeLangHint(hint) {
+    const h = (hint || "").trim();
+    // 台湾語（nan-TW）が無い端末が多いので、無ければ台湾華語に寄せる
+    if (/^nan(-tw)?$/i.test(h) || /^nan-tw$/i.test(h)) return "nan-TW";
+    return h;
+  }
+
+  function getForeignLangHint(w) {
+    // 日本語固定運用: 外国語側（en列）の言語ヒント
+    const raw = (w && w.en_lang) ? w.en_lang : "";
+    const normalized = normalizeLangHint(raw);
+    return normalized || guessLangHintFromText(w ? w.en : "");
+  }
+
+  function updateTtsHint(langHint) {
+    if (!voices || !voices.length) { elTtsHint.textContent = ""; return; }
+    const v = pickVoiceFor(langHint);
+    if (v) elTtsHint.textContent = `現在の音声: ${v.name} / ${v.lang}`;
+    else elTtsHint.textContent = "";
+  }
+
+  function speakText(rawText, langHint) {
+    if (!window.speechSynthesis) {
+      showFlash("bad", "このブラウザは読み上げに対応してないみたい");
+      return;
+    }
+    const text = cleanForSpeech(rawText);
+    if (!text) return;
+
+    window.speechSynthesis.cancel();
+
+    const u = new SpeechSynthesisUtterance(text);
+    let v = pickVoiceFor(langHint);
+    if (!v) {
+      const h = (langHint || "").toLowerCase();
+      // ★フォールバック（nan-TWが無いとき等）
+      if (h.startsWith("nan")) v = pickVoiceFor("zh-TW") || pickVoiceFor("zh-CN") || pickVoiceFor("en-US");
+      else if (h.startsWith("zh")) v = pickVoiceFor("zh-TW") || pickVoiceFor("zh-CN") || pickVoiceFor("en-US");
+      else v = pickVoiceFor("en-US");
+    }
+    if (v) u.voice = v;
+
+    // ★実際に使う音声を表示（オート連動）
+    if (v) elTtsHint.textContent = `現在の音声: ${v.name} / ${v.lang}`;
+    else elTtsHint.textContent = "";
+
+    u.rate = parseFloat(elRate.value || "1.0");
+    u.volume = parseFloat(elVolume.value || "1.0");
+    u.lang = (v && v.lang) ? v.lang : (langHint || "en-US");
+
+    window.speechSynthesis.speak(u);
+  }
+
+  function speakCurrent() {
+    if (!current) { showFlash("bad", "まだ問題がないよ"); return; }
+    // ★日本語固定運用: 🔊は常に外国語側（en列）を読む（en_langがあれば連動）
+    speakText(current.en, getForeignLangHint(current));
+  }
+
+  function stopSpeech() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  // =========================
+  // Answer handling (方向対応 + 自動発音)
+  // =========================
+  function handleAnswer(selected) {
+    if (locked) return;
+    setLocked(true);
+    answered++;
+
+    const answer = getAnswerText(current);
+    const isCorrect = selected === answer;
+    const st = ensureStat(current);
+
+    if (isCorrect) st.correct++;
+    else {
+      st.wrong++;
+      st.wrongChoices.add(selected);
+    }
+
+    if (isCorrect) {
+      correct++;
+      combo++;
+      const remain = parseFloat(elTime.textContent);
+
+      // 0〜1（残り時間の割合）
+      const ratio = Math.max(0, Math.min(1, remain / secondsPerQ));
+
+      // 基礎点
+      const base = 10;
+
+      // スピード点：早いほど大きい（最大+40）
+      const speedBonus = Math.round(40 * (ratio ** 2));
+
+      // コンボ点
+      const comboBonus = combo * 2;
+
+      const gain = base + speedBonus + comboBonus;
+      score += gain;
+      showFlash("good", `正解！ +${gain}  コンボx${combo}`);
+      beep("good");
+
+      // ① 正解時 自動発音（ボタンは残す）
+      if ((elAutoSpeak?.value || "on") === "on") {
+        // 少しだけ遅らせると「正解表示」が見えやすい
+        setTimeout(() => speakCurrent(), 120);
+      }
+
+      if (roundsMode === Infinity) reinsertWord(current, "back");
+    } else {
+      combo = 0;
+      showFlash("bad", `不正解… 正解は「${answer}」`);
+      beep("bad");
+      if (roundsMode === Infinity) reinsertWord(current, "front");
+    }
+
+    renderHud();
+    setTimeout(() => { setLocked(false); nextQuestion(); }, 520);
+  }
+
+  function handleSkip(isTimeout=false) {
+    if (locked) return;
+    setLocked(true);
+    combo = 0;
+    answered++;
+
+    const st = ensureStat(current);
+    st.skip++;
+
+    const ans = getAnswerText(current);
+    showFlash("bad", isTimeout ? `時間切れ… 正解は「${ans}」` : `スキップ: 復習に回す（正解: ${ans}）`);
+    beep("bad");
+    if (roundsMode === Infinity) reinsertWord(current, "front");
+
+    renderHud();
+    setTimeout(() => { setLocked(false); nextQuestion(); }, 420);
+  }
+
+  function rebuildInfiniteDeck() {
+    let ACTIVE = WORDS;
+    const mode = elReviewMode?.value ?? "off";
+    if (mode === "on" && REVIEW_SET.length >= 4) ACTIVE = REVIEW_SET;
+
+    deck = shuffle(ACTIVE).map(w => ({...w}));
+    totalPlanned = Infinity;
+    askedCount = 0;
+  }
+
+  function resetGame() {
+    cancelAnimationFrame(rafId);
+
+    secondsPerQ = clamp(parseFloat(elSecondsPerQ.value || "6"), 1, 30);
+    reviewWeight = clamp(parseInt(elReviewWeight.value || "5", 10), 1, 10);
+
+    score = 0; combo = 0; correct = 0; answered = 0;
+    STATS = new Map();
+
+    elResultPanel.style.display = "none";
+    elFlash.className = "flash"; elFlash.textContent = ""; elFlash.style.display = "none";
+
+    applyDeckFilter();
+    updateModeLabel();
+
+    let ACTIVE = WORDS;
+    const mode = elReviewMode?.value ?? "off";
+    if (mode === "on" && REVIEW_SET.length >= 4) ACTIVE = REVIEW_SET;
+
+    if (ACTIVE.length < 4) {
+      clearChoices();
+      elPrompt.textContent = "単語が足りない…";
+      showFlash("bad", "4択なので、4語以上必要だよ。デッキ/CSVを見直してね。");
+      totalPlanned = 0;
+      askedCount = 0;
+      renderHud();
+      return;
+    }
+
+    const rv = elRounds?.value ?? "1";
+    roundsMode = (rv === "inf") ? Infinity : clamp(parseInt(rv, 10), 1, 10);
+    askedCount = 0;
+
+    if (roundsMode === Infinity) {
+      deck = shuffle(ACTIVE).map(w => ({...w}));
+      totalPlanned = Infinity;
+    } else {
+      const merged = [];
+      for (let r = 0; r < roundsMode; r++) merged.push(...ACTIVE.map(w => ({...w})));
+      deck = shuffle(merged);
+      totalPlanned = deck.length;
+    }
+
+    isPaused = false;
+    pausedRemain = null;
+
+    elBar.style.transform = "scaleX(1)";
+    nextQuestion();
+  }
+
+  // =========================
+  // Pause + results
+  // =========================
+  function pauseGame() {
+    if (isPaused) return;
+    isPaused = true;
+    showResults();
+    showFlash("good", "一時停止中（結果を表示）");
+  }
+
+  function resumeGame() {
+    if (!isPaused) return;
+    isPaused = false;
+    elResultPanel.style.display = "none";
+    scheduleTimer(pausedRemain ?? secondsPerQ);
+  }
+
+  // =========================
+  // Events
+  // =========================
+  elSkip.addEventListener("click", () => handleSkip(false));
+  elRestart.addEventListener("click", () => resetGame());
+
+  elPauseResults.addEventListener("click", () => {
+    if (!isPaused) pauseGame();
+    else resumeGame();
+  });
+
+  elCloseResult.addEventListener("click", () => {
+    if (isPaused) resumeGame();
+    else elResultPanel.style.display = "none";
+  });
+
+  elDirection.addEventListener("change", () => resetGame());
+  elDeckSelect.addEventListener("change", () => resetGame());
+  elReviewMode.addEventListener("change", () => { updateReviewStatus(); resetGame(); });
+  elPickReview.addEventListener("click", () => openReviewPicker());
+  elSaveReview.addEventListener("click", () => saveReviewPicker());
+  elClearReview.addEventListener("click", () => clearReviewSet());
+
+elAutoPickWeak.addEventListener("click", () => autoPickWeakWords());
+  elAutoPickWeakFromResults?.addEventListener("click", () => autoPickWeakWords());
+
+
+  elRounds.addEventListener("change", () => resetGame());
+  elSecondsPerQ.addEventListener("change", () => resetGame());
+  elReviewWeight.addEventListener("change", () => resetGame());
+
+  elCsvFile.addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    try {
+      const text = await f.text();
+      const items = parseCSV(text);
+      if (items.length < 4) throw new Error("4択なので、4語以上必要だよ");
+      WORDS_ALL = items;
+      elCsvStatus.textContent = `読み込みOK: ${items.length}語`;
+      applyDeckFilter();
+      REVIEW_SET = [];
+      updateReviewStatus();
+      resetGame();
+      showFlash("good", "CSVを反映したよ！");
+    } catch (err) {
+      elCsvStatus.textContent = `読み込み失敗: ${err.message || err}`;
+      showFlash("bad", `CSVエラー: ${err.message || err}`);
+    } finally {
+      elCsvFile.value = "";
+    }
+  });
+
+  // TTS UI
+  elRate.addEventListener("input", () => elRateLabel.textContent = Number(elRate.value).toFixed(2));
+  elVolume.addEventListener("input", () => elVolLabel.textContent = Number(elVolume.value).toFixed(2));
+  elSpeak.addEventListener("click", () => speakCurrent());
+  elStopSpeak.addEventListener("click", () => stopSpeech());
+
+  // Keyboard shortcuts
+  window.addEventListener("keydown", (e) => {
+    const k = e.key.toLowerCase();
+    if (k >= "1" && k <= "4") {
+      const idx = parseInt(k, 10) - 1;
+      const btn = elChoices.querySelectorAll("button.choice")[idx];
+      if (btn && !btn.disabled) btn.click();
+    }
+    if (k === "s") elSkip.click();
+    if (k === "r") elRestart.click();
+    if (k === "p") speakCurrent();
+    if (k === "x") stopSpeech();
+  });
+
+  // voices can load async
+  if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = () => listVoices();
+  }
+
+  // =========================
+  // Init
+  // =========================
+  applyDeckFilter();
+  updateReviewStatus();
+  listVoices();
+  elRateLabel.textContent = Number(elRate.value).toFixed(2);
+  elVolLabel.textContent = Number(elVolume.value).toFixed(2);
+  resetGame();
+</script>
+</body>
+</html>
